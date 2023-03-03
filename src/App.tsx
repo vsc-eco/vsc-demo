@@ -184,7 +184,9 @@ export const App = () => {
             </Card>
           </GridItem>
         </Grid>
-        <Vertical />
+        <div style={{marginTop: '5%'}}>
+          <Vertical />
+        </div>
       </Grid>
     </Box>
   </ChakraProvider>)
