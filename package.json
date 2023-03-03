@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@apollo/client": "^3.7.9",
     "@chakra-ui/react": "^2.5.1",
     "@emotion/react": "^11.10.6",
     "@emotion/styled": "^11.10.6",
@@ -13,10 +14,20 @@
     "@types/node": "^12.20.55",
     "@types/react": "^18.0.28",
     "@types/react-dom": "^18.0.11",
+    "ajv": "^8.12.0",
+    "brace": "^0.11.1",
+    "chakra-ui-steps": "^2.0.4",
+    "dids": "^4.0.0",
     "framer-motion": "^6.5.1",
+    "ipfs": "^0.66.0",
+    "jsoneditor": "^9.10.0",
+    "jsoneditor-react": "^3.1.2",
+    "key-did-provider-ed25519": "^3.0.0",
+    "key-did-resolver": "^3.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-icons": "^3.11.0",
+    "react-json-editor-ajrm": "^2.5.14",
     "react-scripts": "5.0.1",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
@@ -41,5 +52,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@types/react-json-editor-ajrm": "^2.5.3"
   }
 }
