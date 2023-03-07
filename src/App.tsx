@@ -48,6 +48,14 @@ query MyQuery($id: String) {
   }
 }
 `
+const TRANSACTION_STATUS = gql`
+query MyQuery($id: String) {
+  findTransaction(id:$id) {
+    id
+    status
+  }
+}
+`
 
 const theme = extendTheme({
   components: {
@@ -66,34 +74,45 @@ const theme = extendTheme({
 });
 
 
-const steps = [{ label: "Step 1" }, { label: "Step 2" }, { label: "Step 3" }]
+const steps = [{label: 'Create transaction'}, { label: "Transaction created!" }, { label: "Included in block" }, { label: "Confirmed!" }]
 
-export const Vertical = () => {
-  const { nextStep, prevStep, reset, activeStep } = useSteps({
+export const Vertical = (props: any) => {
+  const { nextStep, prevStep, reset, activeStep, setStep } = useSteps({
     initialStep: 0,
   })
+
+  React.useEffect(() => {
+    if(props.status === "UNCONFIRMED") {
+      setStep(2)
+    } else if(props.status === "INCLUDED") {
+      setStep(3)
+    } else if (props.status === "CONFIRMED") {
+      setStep(4)
+    }
+  }, [props.status])
+
   return (
     <>
       <Steps orientation="horizontal" activeStep={activeStep}>
         {steps.map(({ label }, index) => (
           <Step width="100%" label={label} key={label}>
-            <div>Step {index + 1}</div>
+            {/* <div>Step {index + 1}</div> */}
             {/* <Contents my={1} index={index} /> */}
           </Step>
         ))}
       </Steps>
       {activeStep === steps.length ? (
         <Flex px={4} py={4} width="100%" flexDirection="column">
-          <Heading fontSize="xl" textAlign="center">
+          {/* <Heading fontSize="xl" textAlign="center">
             Woohoo! All steps completed!
           </Heading>
           <Button mx="auto" mt={6} size="sm" onClick={reset}>
             Reset
-          </Button>
+          </Button> */}
         </Flex>
       ) : (
         <Flex width="100%" justify="flex-end">
-          <Button
+          {/* <Button
             isDisabled={activeStep === 0}
             mr={4}
             onClick={prevStep}
@@ -104,12 +123,14 @@ export const Vertical = () => {
           </Button>
           <Button size="sm" onClick={nextStep}>
             {activeStep === steps.length - 1 ? "Finish" : "Next"}
-          </Button>
+          </Button> */}
         </Flex>
       )}
     </>
   )
 }
+
+let sync_pid: any;
 
 export const App = () => {
   const {
@@ -117,23 +138,44 @@ export const App = () => {
     myDid
   } = useAccountContext()
   const ac = React.useContext(AccountContext)
-  console.log(ac)
 
-  const { loading, error, data } = useQuery(CONTRACT_STATE, {
-    variables: { id: 'test' },
-  });
-
+  const [rawTx, setRawTx] = React.useState({ "key": "world", "value": "insert custom value here!" })
   const [signedTx, setSignedTx] = React.useState(null)
   const [publishing, setPublishing] = React.useState(false)
   const [published, setPublished] = React.useState(false)
+  const [txId, setTxId] = React.useState<string | null>(null)
+
+  const { loading, error, data, refetch: refetchState } = useQuery(CONTRACT_STATE, {
+    variables: { id: 'test' },
+  });
+
+  const { data: transactionData, refetch } = useQuery(TRANSACTION_STATUS, {
+    variables: { id: txId },
+    skip: !txId
+  });
+
+
+  const txStatus = (transactionData || {})?.findTransaction?.status || "PENDING"
+
+  React.useEffect(() => {
+    sync_pid = setInterval(() => {
+      if(txId) {
+        refetch()
+      }
+      refetchState()
+    }, 1000)
+    return () => {
+      clearInterval(sync_pid)
+    }
+  }, [txId])
 
   const createTransaction = React.useCallback(async () => {
     if (myDid) {
       let contractInput = {
         contract_id: 'test',
-        action: 'call_contract',
+        action: 'set',
         payload: {
-
+          ...rawTx,
         },
         op: 'call_contract',
         type: 1,
@@ -141,22 +183,31 @@ export const App = () => {
       }
       const did = myDid as DID;
       const dagJws = await did.createDagJWS({
-        contractInput
+        __t: "vsc-tx",
+        __v: "0.1",
+        lock_block: "null",
+        tx: contractInput
       })
 
       setSignedTx(JSON.parse(JSON.stringify(dagJws)))
     }
-  }, [myDid])
+  }, [myDid, rawTx])
 
-  const publishTransaction = React.useCallback(() => {
+  const publishTransaction = React.useCallback(async() => {
     setPublishing(true)
     
+
+    const { data } = await Axios.post('http://localhost:1337/api/v1/gateway/submit_transaction', {
+      signedTx: signedTx
+    })
+
+    console.log(data)
+    setTxId(data.id)
 
     setPublishing(false)
     setPublished(true)
   }, [signedTx])
 
-  console.log('signedTx', signedTx)
 
   return (<ChakraProvider theme={theme}>
     <Box textAlign="center" fontSize="xl">
@@ -175,7 +226,7 @@ export const App = () => {
             <Card>
               <CardHeader style={{ paddingBottom: '0px' }}>
                 <Text>
-                  Contact Raw
+                  Transaction Raw
                 </Text>
               </CardHeader>
               <CardBody>
@@ -184,6 +235,7 @@ export const App = () => {
                   value={{ "key": "world", "value": "insert custom value here!" }}
                   onChange={(value: any) => {
                     console.log(value)
+                    setRawTx(value)
                   }}
                   ace={ace}
                   theme="ace/theme/monokai"
@@ -196,7 +248,7 @@ export const App = () => {
             <Card>
               <CardHeader style={{ paddingBottom: '0px' }}>
                 <Text>
-                  Contact Input
+                  Contract Input
                 </Text>
               </CardHeader>
               <CardBody>
@@ -226,13 +278,14 @@ export const App = () => {
             <Card>
               <CardHeader style={{ paddingBottom: '0px' }}>
                 <Text>
-                  Contact State (current)
+                  Contract State (current)
                 </Text>
               </CardHeader>
               <CardBody>
                 {
                   data?.contractState?.state ?
                     <Editor
+                      key={JSON.stringify(data?.contractState?.state)}
                       mode="code"
                       value={data?.contractState?.state || {}}
                       // onChange={(value: any) => {
@@ -302,7 +355,7 @@ export const App = () => {
           </GridItem>
         </Grid>
         <GridItem style={{ marginTop: '5%' }}>
-          <Vertical />
+          <Vertical status={txStatus} />
         </GridItem>
       </Grid>
       <AccountSystem />
